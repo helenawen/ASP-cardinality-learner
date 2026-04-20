@@ -1,0 +1,3 @@
+http://example.com/test#a3
+http://example.com/test#a4
+http://example.com/test#a2

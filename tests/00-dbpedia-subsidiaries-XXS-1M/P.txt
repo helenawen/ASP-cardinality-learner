@@ -1,0 +1,2 @@
+http://dbpedia.org/resource/Goodyear_Tire_and_Rubber_Company
+http://dbpedia.org/resource/Thales_Group
