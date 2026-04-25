@@ -66,6 +66,7 @@
         <doesCraft rdf:resource="#Crochet"/>
         <doesCraft rdf:resource="#Painting"/>
         <doesSport rdf:resource="#Bouldering"/>
+        <doesSport rdf:resource="#Football"/>
     </owl:NamedIndividual>
 
     <owl:NamedIndividual rdf:about="#Claire">

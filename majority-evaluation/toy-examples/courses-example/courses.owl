@@ -77,12 +77,14 @@
         <takesCourse rdf:resource="http://example.com/university#AI101"/>
         <takesCourse rdf:resource="http://example.com/university#ML202"/>
         <takesCourse rdf:resource="http://example.com/university#ArtHistory"/>
+        <takesCourse rdf:resource="IntroLogic"/>
     </owl:NamedIndividual>
 
     <!-- Claire-->
     <owl:NamedIndividual rdf:about="http://example.com/university#Claire">
         <rdf:type rdf:resource="http://example.com/university#Person"/>
         <takesCourse rdf:resource="http://example.com/university#ArtHistory"/>
+        <takesCourse rdf:resource="http://example.com/university#IntroLogic"/>
         <takesCourse rdf:resource="http://example.com/university#ML202"/>
     </owl:NamedIndividual>
 
