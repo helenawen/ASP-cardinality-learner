@@ -26,7 +26,7 @@
     <!-- Classes -->
     <owl:Class rdf:about="http://example.com/pets#pet"/>
     <owl:Class rdf:about="http://example.com/pets#bird">
-        <rdfs:subClassOf rdf:resource="http://example.com/pets#pat"/>
+        <rdfs:subClassOf rdf:resource="http://example.com/pets#pet"/>
     </owl:Class>
     <owl:Class rdf:about="http://example.com/pets#cat">
         <rdfs:subClassOf rdf:resource="http://example.com/pets#pet"/>
@@ -66,15 +66,6 @@
         <ownsPet rdf:resource="http://example.com/pets#dog2"/>
     </owl:NamedIndividual>
 
-    <!-- Bob -->
-    <owl:NamedIndividual rdf:about="http://example.com/pets#claire">
-        <rdf:type rdf:resource="http://example.com/pets#person"/>
-
-        <ownsPet rdf:resource="http://example.com/pets#bird6"/>
-        <ownsPet rdf:resource="http://example.com/pets#cat3"/>
-        <ownsPet rdf:resource="http://example.com/pets#dog3"/>
-    </owl:NamedIndividual>
-
     <!-- Birds -->
     <owl:NamedIndividual rdf:about="http://example.com/pets#bird1">
         <rdf:type rdf:resource="http://example.com/pets#bird"/>
@@ -99,18 +90,12 @@
     <owl:NamedIndividual rdf:about="http://example.com/pets#cat2">
         <rdf:type rdf:resource="http://example.com/pets#cat"/>
     </owl:NamedIndividual>
-    <owl:NamedIndividual rdf:about="http://example.com/pets#cat3">
-        <rdf:type rdf:resource="http://example.com/pets#cat"/>
-    </owl:NamedIndividual>
 
     <!-- Dogs -->
     <owl:NamedIndividual rdf:about="http://example.com/pets#dog1">
         <rdf:type rdf:resource="http://example.com/pets#dog"/>
     </owl:NamedIndividual>
     <owl:NamedIndividual rdf:about="http://example.com/pets#dog2">
-        <rdf:type rdf:resource="http://example.com/pets#dog"/>
-    </owl:NamedIndividual>
-    <owl:NamedIndividual rdf:about="http://example.com/pets#dog3">
         <rdf:type rdf:resource="http://example.com/pets#dog"/>
     </owl:NamedIndividual>
 </rdf:RDF>
