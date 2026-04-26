@@ -17,17 +17,9 @@
     <owl:Ontology rdf:about="http://example.com/pets"/>
 
     <!-- Object Properties -->
-    <owl:ObjectProperty rdf:about="http://example.com/pets#ownsBird">
-        <rdfs:domain rdf:resource="http://example.com/pets#bird"/>
-    </owl:ObjectProperty>
-
-    <owl:ObjectProperty rdf:about="http://example.com/pets#ownsCat">
-        <rdfs:domain rdf:resource="http://example.com/pets#cat"/>
-    </owl:ObjectProperty>
-
-    <owl:ObjectProperty rdf:about="http://example.com/pets#ownsDog">
-        <rdfs:domain rdf:resource="http://example.com/pets#dog"/>
-    </owl:ObjectProperty>
+    <owl:ObjectProperty rdf:about="http://example.com/pets#ownsBird"></owl:ObjectProperty>
+    <owl:ObjectProperty rdf:about="http://example.com/pets#ownsCat"></owl:ObjectProperty>
+    <owl:ObjectProperty rdf:about="http://example.com/pets#ownsDog"></owl:ObjectProperty>
 
     <!-- Classes -->
     <owl:Class rdf:about="http://example.com/pets#pet"/>
@@ -54,22 +46,18 @@
     <!-- Alice -->
     <owl:NamedIndividual rdf:about="http://example.com/pets#alice">
         <rdf:type rdf:resource="http://example.com/pets#person"/>
-
         <ownsBird rdf:resource="http://example.com/pets#bird1"/>
         <ownsBird rdf:resource="http://example.com/pets#bird2"/>
         <ownsCat rdf:resource="http://example.com/pets#cat1"/>
-        <ownsDog rdf:resource="http://example.com/pets#dog1"/>
     </owl:NamedIndividual>
 
     <!-- Bob -->
     <owl:NamedIndividual rdf:about="http://example.com/pets#bob">
         <rdf:type rdf:resource="http://example.com/pets#person"/>
-
         <ownsBird rdf:resource="http://example.com/pets#bird3"/>
         <ownsBird rdf:resource="http://example.com/pets#bird4"/>
         <ownsBird rdf:resource="http://example.com/pets#bird5"/>
         <ownsCat rdf:resource="http://example.com/pets#cat2"/>
-        <ownsDog rdf:resource="http://example.com/pets#dog2"/>
     </owl:NamedIndividual>
 
     <!-- Birds -->

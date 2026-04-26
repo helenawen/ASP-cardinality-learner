@@ -12,6 +12,8 @@ ELQ-pets-geq:
 ELQ-pets-eq:
 	$(SPELL) ELQ/toy-examples/pets-eq-example/pets.owl ELQ/toy-examples/pets-eq-example/P.txt ELQ/toy-examples/pets-eq-example/N.txt
 
+ELQ-pets-eq2:
+	$(SPELL) ELQ/toy-examples/pets-eq-example-2/pets.owl ELQ/toy-examples/pets-eq-example-2/P.txt ELQ/toy-examples/pets-eq-example-2/N.txt
 
 #ELN
 #toy examples
