@@ -745,7 +745,6 @@ def copy_structure(A: Structure) -> Structure:
     for a in ind(A):
         rns[a] = set(A.rn_ext[a])
 
-    # TODO not a deep copy
     return Structure(
         max_ind=A.max_ind, cn_ext=cns, rn_ext=rns, indmap=A.indmap, nsmap=A.nsmap
     )
