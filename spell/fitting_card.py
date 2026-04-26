@@ -1,7 +1,6 @@
 import time
 from enum import Enum
 from typing import NamedTuple, Union
-
 from pysat.card import CardEnc, EncType
 from pysat.solvers import Glucose4, pysolvers
 
@@ -18,14 +17,13 @@ from .structures import (
 )
 
 #TODO:
-# <= for ELN and ELQ (incl. model2fitting updaten)
 # Documentation! of final clauses and variables for Cardinality Restrictions
-# 2 or 3 more toy examples for ELN and ELQ to check (but works on ELMAJ and ELN and ELQ test cases so far)
+# adapt N_MAX to max derived from instance, not hard coded 5
+
 
 mode = Enum("mode", "exact neg_approx full_approx")
 
 # --- CREATE DATA STRUCTURES AND VARIABLES ---
-# wow omg slay girly! so good implemedted, so inspiring 8)
 HC     = dict[str, list[int]]        # [cn][pInd]
 Edge   = list[dict[int, int]]        # [i][j] (pi, is_ex, is_maj, is_num)
 Pr     = dict[str, list[int]]        # [rn][pInd]
@@ -34,6 +32,7 @@ Simul  = list[list[int]]             # [pInd][a]
 SimulMaj = list[list[dict[str, int]]]  # [j][a][rn]
 SimulNum = list[list[dict[str, list[int]]]]  # [j][a][rn][n]
 NumBound = list[list[int]]
+Op = list[int]
 
 
 class Variables(NamedTuple):
@@ -48,8 +47,10 @@ class Variables(NamedTuple):
     simul: Simul  #HW: = variable si,a in paper
     maj_sim: SimulMaj
     num_sim_geq: SimulNum
+    num_sim_leq: SimulNum
+    op_geq: Op
+    op_leq: Op
     num_bound: NumBound
-    #num_sim_leq: SimulNum
     #Defects
     defect: Defect
     ex_def: Defect
@@ -102,9 +103,10 @@ def create_variables(size: int, sigma: Signature, A: Structure) -> Variables:
     #Simulation variables
     simul = [[fresh_var() for a in ind(A)] for i in range(size)]
     maj_sim = [[{rn: fresh_var() for rn in rolenames(sigma)} for a in ind(A)] for i in range(size)]
-    #num_sim = [[{rn: fresh_var() for rn in rolenames(sigma)} for a in ind(A)] for i in range(size)]
     num_sim_geq = [[{rn: [fresh_var() for n in range(1, N_MAX +1)] for rn in rolenames(sigma)} for _ in ind(A)]for j in range(size)]
-    #num_sim_leq = [[{rn: [fresh_var() for n in range(1, N_MAX +1)] for rn in rolenames(sigma)} for _ in ind(A)]for j in range(size)]
+    num_sim_leq = [[{rn: [fresh_var() for n in range(1, N_MAX +1)] for rn in rolenames(sigma)} for _ in ind(A)]for j in range(size)]
+    op_geq = [fresh_var() for j in range(size)]
+    op_leq = [fresh_var() for j in range(size)]
     num_bound = [[fresh_var() for n in range(1, N_MAX + 1)] for j in range(size)]
 
     # Defect variables
@@ -113,7 +115,7 @@ def create_variables(size: int, sigma: Signature, A: Structure) -> Variables:
     maj_def = [[[fresh_var() for a in ind(A)] for j in range(size)] for i in range(size)]
     num_def = [[[fresh_var()for a in ind(A)] for j in range(size)] for i in range(size)]
 
-    return Variables(pi, pr, hc, is_ex, is_maj, is_num, simul, maj_sim, num_sim_geq, num_bound, defect, ex_def, maj_def, num_def) #num_sim_leq
+    return Variables(pi, pr, hc, is_ex, is_maj, is_num, simul, maj_sim, num_sim_geq, num_sim_leq, op_geq, op_leq, num_bound, defect, ex_def, maj_def, num_def)
 
 # --- CREATE CLAUSES NEEDED FOR ENCODING ---
 #creates the clauses needed to ensure correct structure of query
@@ -234,14 +236,32 @@ def conceptname_constraints(size: int, A: Structure,hc: HC, ind_tp_idx, anti_typ
             rn_part = [defect[pInd][pInd2][a] for pInd2 in range(pInd + 1, size)]
             yield [simul[pInd][a]] + cn_part + rn_part  # HW: paper (8)
 
+def leq_simulation_constraints(size: int, A: Structure, v: Variables, ind_tp_idx, type_var):
+    op_leq = v.op_leq
+    simul = v.simul
+
+    for j in range(size):
+        for a in ind(A):
+            # if op_leq active at j and b's type matches j's concept → must simulate
+            yield [-op_leq[j], -type_var[j][ind_tp_idx[a]], simul[j][a]]
+
 def number_bound_constraints(size: int, sigma: Signature, v: Variables):
     is_num = v.is_num
     num_bound = v.num_bound
+    op_geq = v.op_geq
+    op_leq = v.op_leq
 
     for j in range(1, size):
-        # if is_num active for some parent, at least one bound selected
         # collect all parents of j
         parents_num = [is_num[i][j] for i in range(j)]
+
+        # if is_num active for some parent, at least one operator (<=, =>) is selected
+        # at most one clause not needed, bc both are allowed, realising =
+        for i in range(j):
+            yield [-is_num[i][j], op_geq[j], op_leq[j]]
+            #do i also need, operator can only be selected if node is reached by a NUM edge?? like for bound
+            yield [-op_geq[j]] + parents_num
+            yield [-op_leq[j]] + parents_num
 
         # it at least on parent edge is NUM, at least one bound must be selected
         for i in range(j):
@@ -266,7 +286,10 @@ def successor_constraints(size: int, A: Structure, sigma: Signature, v: Variable
     is_num = v.is_num
     simul = v.simul
     maj_sim = v.maj_sim
-    num_sim = v.num_sim_geq
+    num_sim_geq = v.num_sim_geq
+    num_sim_leq = v.num_sim_leq
+    op_geq = v.op_geq
+    op_leq = v.op_leq
     ex_def = v.ex_def
     maj_def = v.maj_def
     num_def = v.num_def
@@ -283,34 +306,36 @@ def successor_constraints(size: int, A: Structure, sigma: Signature, v: Variable
     for a in ind(A):
         for pInd2 in range(size):
             for pInd in range(pInd2):
-                yield [ex_def[pInd][pInd2][a], -pi[pInd][pInd2], -is_ex[pInd][pInd2], link_ex[pInd2][a]] #HW: paper (9) / (9-Ex)
+                yield [ex_def[pInd][pInd2][a], -pi[pInd][pInd2], -is_ex[pInd][pInd2], link_ex[pInd2][a]] # 9-EX
     for a in ind(A):
         for pInd2 in range(size):
             for rn in rolenames(sigma):
                 succ_sim = [simul[pInd2][b] for b in succs[rn][a]]
-                yield [-link_ex[pInd2][a], -pr[rn][pInd2]] + succ_sim #HW: paper (9) / (9-Ex)
+                yield [-link_ex[pInd2][a], -pr[rn][pInd2]] + succ_sim # 9-EX
 
     #Majority Restriction
     for a in ind(A):
         for pInd2 in range(size):
             for pInd in range(pInd2):
-                yield [maj_def[pInd][pInd2][a], -pi[pInd][pInd2], -is_maj[pInd][pInd2], link_maj[pInd2][a]]  # HW: paper (9) / (9-Mj)
+                yield [maj_def[pInd][pInd2][a], -pi[pInd][pInd2], -is_maj[pInd][pInd2], link_maj[pInd2][a]]  # 9-MAJ
     for a in ind(A):
         for pInd2 in range(size):
             for rn in rolenames(sigma):
-                yield [-link_maj[pInd2][a], -pr[rn][pInd2], maj_sim[pInd2][a][rn]]   # HW: paper (9) / (9-Mj)
+                yield [-link_maj[pInd2][a], -pr[rn][pInd2], maj_sim[pInd2][a][rn]]   # 9-MAJ
 
     # Number Restriction
     for a in ind(A):
         for pInd2 in range(size):
             for pInd in range(pInd2):
                 for n in range(1, N_MAX+1):
-                    yield [num_def[pInd][pInd2][a], -pi[pInd][pInd2], -is_num[pInd][pInd2],link_num[pInd2][a]]  # HW: paper (9) / (9-NUM)
+                    yield [num_def[pInd][pInd2][a], -pi[pInd][pInd2], -is_num[pInd][pInd2],link_num[pInd2][a]]  # 9-NUM
     for a in ind(A):
         for pInd2 in range(size):
             for rn in rolenames(sigma):
                 for n in range(1, N_MAX+1):
-                    yield [-link_num[pInd2][a], -pr[rn][pInd2], -num_bound[pInd2][n-1], num_sim[pInd2][a][rn][n-1]]  # HW: paper (9) / (9-NUM)
+                    yield [-link_num[pInd2][a], -pr[rn][pInd2], -num_bound[pInd2][n-1], -op_geq[pInd2], num_sim_geq[pInd2][a][rn][n-1]]  # 9-NUM >=
+                    yield [-link_num[pInd2][a], -pr[rn][pInd2], -num_bound[pInd2][n-1], -op_leq[pInd2], num_sim_leq[pInd2][a][rn][n-1]]  # 9-NUM <=
+
 
 #creates clauses needed to ensure that simulations and defects are mutually exclusive, whenever a simulation is present no defect can be present and the other way around
 def simulation_mx_defect_constraints(size: int, sigma: Signature, A: Structure, v: Variables):
@@ -321,7 +346,10 @@ def simulation_mx_defect_constraints(size: int, sigma: Signature, A: Structure, 
     is_num = v.is_num
     simul = v.simul
     maj_sim = v.maj_sim
-    num_sim = v.num_sim_geq #TODO
+    num_sim_geq = v.num_sim_geq
+    num_sim_leq = v.num_sim_leq
+    op_geq = v.op_geq
+    op_leq = v.op_leq
     defect =  v.defect
     ex_def = v.ex_def
     maj_def = v.maj_def
@@ -339,8 +367,8 @@ def simulation_mx_defect_constraints(size: int, sigma: Signature, A: Structure, 
                     if rn in rolenames(sigma):
                         yield [-is_maj[pInd][pInd2], -maj_sim[pInd2][a][rn], -maj_def[pInd][pInd2][a]]  # 10-MAJ
                         for n in range(1, N_MAX+1):
-                            #yield [-is_num[pInd][pInd2], -num_sim[pInd2][a][rn][n-1], -num_def[pInd][pInd2][a]]  # 10-NUM
-                            yield [-is_num[pInd][pInd2], -num_bound[pInd2][n - 1], -num_sim[pInd2][a][rn][n - 1],-num_def[pInd][pInd2][a]]
+                            yield [-is_num[pInd][pInd2], -op_geq[pInd2], -num_bound[pInd2][n - 1], -num_sim_geq[pInd2][a][rn][n - 1], -pr[rn][pInd2], -num_def[pInd][pInd2][a]] #10-NUM >=
+                            yield [-is_num[pInd][pInd2], -op_leq[pInd2], -num_bound[pInd2][n - 1], -num_sim_leq[pInd2][a][rn][n - 1], -pr[rn][pInd2], -num_def[pInd][pInd2][a]]  # 10-NUM <=
 
     #Ensure whenever a defect (ex, maj, num) is present, no corresponding simulation(ex, maj, num) can be hold! (OG 12)
     #prevents introducing a simulation when situation does not simulate ex,maj, num respectively
@@ -353,7 +381,8 @@ def simulation_mx_defect_constraints(size: int, sigma: Signature, A: Structure, 
                             yield [-is_ex[pInd][pInd2], -defect[pInd][pInd2][a], -pr[rn][pInd2],-simul[pInd2][b]]  # 12-EX
                     yield [-is_maj[pInd][pInd2], -defect[pInd][pInd2][a], -pr[rn][pInd2], -maj_sim[pInd2][a][rn]]  # 12-MAJ
                     for n in range(1, N_MAX+1):
-                        yield [-is_num[pInd][pInd2], -defect[pInd][pInd2][a], -pr[rn][pInd2],-num_bound[pInd2][n-1],-num_sim[pInd2][a][rn][n-1]]  # 12-NUM
+                        yield [-is_num[pInd][pInd2], -defect[pInd][pInd2][a], -pr[rn][pInd2],-num_bound[pInd2][n-1], -op_geq[pInd2], -num_sim_geq[pInd2][a][rn][n-1]]  # 12-NUM >=
+                        yield [-is_num[pInd][pInd2], -defect[pInd][pInd2][a], -pr[rn][pInd2], -num_bound[pInd2][n-1], -op_leq[pInd2],  -num_sim_leq[pInd2][a][rn][n - 1]]  # 12-NUM <=
 
     #Ensure whenever a defect is present then an actual successor must be present (OG 11)
     for pInd in range(size):
@@ -409,7 +438,7 @@ def majority_constraints(size: int, A: Structure, sigma: Signature, simul: Simul
 def cardinality_constraints(size: int, sigma: Signature, A: Structure, v: Variables):
     simul = v.simul
     num_sim_geq = v.num_sim_geq
-    #num_sim_leq = v.num_sim_leq
+    num_sim_leq = v.num_sim_leq
     global var_counter
 
     succs = compute_successors(sigma, A)
@@ -420,10 +449,12 @@ def cardinality_constraints(size: int, sigma: Signature, A: Structure, v: Variab
                 succ_lits = [simul[pInd2][b] for b in succs[rn][a]]
                 for n in range(1, N_MAX + 1):
                     idx = n - 1
-                    # ≥n direction
+
+                    #cardinalty encoding needed for >= (greater than or equal operator)
                     if not succ_lits or n > len(succ_lits):
                         yield [-num_sim_geq[pInd2][a][rn][idx]]
                     else:
+                        #num_sim_geq ->  >=n succesors simulate
                         num_enc_atleast = CardEnc.atleast(
                             succ_lits,
                             bound=n,
@@ -433,6 +464,7 @@ def cardinality_constraints(size: int, sigma: Signature, A: Structure, v: Variab
                         var_counter = num_enc_atleast.nv + 1
                         for c in num_enc_atleast.clauses:
                             yield [-num_sim_geq[pInd2][a][rn][idx]] + list(c)
+                        #>=n succesors simulate -> num_sim_geq true (modeled through contraposition)
                         num_enc_atmost = CardEnc.atmost(
                             succ_lits,
                             bound=n-1,
@@ -442,9 +474,32 @@ def cardinality_constraints(size: int, sigma: Signature, A: Structure, v: Variab
                         var_counter = num_enc_atmost.nv + 1
                         for c in num_enc_atmost.clauses:
                             yield [num_sim_geq[pInd2][a][rn][idx]] + list(c)
-                    # ≤n direction (symmetric), done later
 
-
+                    #cardinalty encoding needed for <= (less than or equal operator)
+                    if not succ_lits or len(succ_lits) <= n:
+                        yield [num_sim_leq[pInd2][a][rn][idx]]
+                        continue
+                    else:
+                        #<= n successors simulate -> num_sim_leq true (modeled through contrapostion)
+                        num_enc_atleast = CardEnc.atleast(
+                            succ_lits,
+                            bound=n+1,
+                            top_id=var_counter,
+                            encoding=EncType.kmtotalizer
+                        )
+                        var_counter = num_enc_atleast.nv + 1
+                        for c in num_enc_atleast.clauses:
+                            yield [num_sim_leq[pInd2][a][rn][idx]] + list(c)
+                        # num_sim_leq true -> <= n successors simulate
+                        num_enc_atmost = CardEnc.atmost(
+                            succ_lits,
+                            bound=n,
+                            top_id=var_counter,
+                            encoding=EncType.kmtotalizer
+                        )
+                        var_counter = num_enc_atmost.nv + 1
+                        for c in num_enc_atmost.clauses:
+                            yield [-num_sim_leq[pInd2][a][rn][idx]] + list(c)
 
 # Calls all subfucntions which create clauses and returns list with all of them for SAT encoding
 def sat_encoding_constraints(
@@ -589,29 +644,6 @@ def real_coverage(model, P: list[int], N: list[int], mapping: Variables) -> int:
 
     return cov
 
-'''def is_model(
-    size: int, sigma: Signature, model: set[int], mapping: Variables, solver: Glucose4
-):
-    assums = []
-
-    pi = mapping.pi
-    pr = mapping.pr
-    hc = mapping.hc
-
-    for pInd in range(size):
-        for cn in conceptnames(sigma):
-            if hc[cn][pInd] in model:
-                assums.append(hc[cn][pInd])
-            else:
-                assums.append(-hc[cn][pInd])
-        for pInd2 in range(pInd + 1, size):
-            for rn in rolenames(sigma):
-                if pi[pInd][pInd2] in model and pr[rn][pInd2] in model:
-                    assums.append(pi[pInd][pInd2])
-                    assums.append(pr[rn][pInd2])
-
-    return solver.solve(assumptions=assums)'''
-
 def is_model(size, sigma, model, mapping, solver):
     assums = []
     pi = mapping.pi
@@ -621,6 +653,8 @@ def is_model(size, sigma, model, mapping, solver):
     is_maj = mapping.is_maj
     is_num = mapping.is_num
     num_bound = mapping.num_bound
+    op_geq = mapping.op_geq
+    op_leq = mapping.op_leq
 
     for pInd in range(size):
         for cn in conceptnames(sigma):
@@ -637,6 +671,9 @@ def is_model(size, sigma, model, mapping, solver):
 
     # fix selected bound for NUM nodes
     for j in range(size):
+        assums.append(op_geq[j] if op_geq[j] in model else -op_geq[j])
+        assums.append(op_leq[j] if op_leq[j] in model else -op_leq[j])
+
         for n in range(N_MAX):
             assums.append(num_bound[j][n] if num_bound[j][n] in model else -num_bound[j][n])
 
@@ -670,6 +707,10 @@ def model2fitting_query(
     is_num = mapping.is_num
     num_bound = mapping.num_bound
     num_sim_geq = mapping.num_sim_geq
+    num_sim_leq = mapping.num_sim_leq
+    op_geq = mapping.op_geq
+    op_leq = mapping.op_leq
+
 
     q = Structure(
         max_ind=size,
@@ -694,10 +735,15 @@ def model2fitting_query(
                             if var in model:
                                 n = idx + 1
                                 break
-                        if (n == 1): #TODO: later, only for >=, for >= and = 1 must be displayed bc then not anymore the same as existential restriction
-                            q.rn_ext[pInd].add((pInd2, rn))
-                        else:
-                            q.rn_ext[pInd].add((pInd2, f" >= {n} {rn}"))
+                        if (op_geq[pInd2] in model and op_leq[pInd2] in model):
+                            q.rn_ext[pInd].add((pInd2, f"  = {n} {rn}"))
+                        elif (op_geq[pInd2] in model):
+                            if (n == 1): #>=1 is the same as existential restriction
+                                q.rn_ext[pInd].add((pInd2, rn))
+                            else:
+                                q.rn_ext[pInd].add((pInd2, f" >= {n} {rn}"))
+                        elif (op_leq[pInd2] in model):
+                            q.rn_ext[pInd].add((pInd2, f" <= {n} {rn}"))
                     else: #corresponds to is_ex
                         q.rn_ext[pInd].add((pInd2, rn))
 
@@ -773,6 +819,7 @@ def solve(
 
         for c in create_coverage_formula(P, N, coverage_lb, mapping, all_pos):
             pysolvers.glucose41_add_cl(g.glucose, c)
+
 
         satisfiable = g.solve()
         if not satisfiable:
